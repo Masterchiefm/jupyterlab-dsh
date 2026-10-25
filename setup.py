@@ -30,7 +30,7 @@ def labextension_data_files():
 
 setup(
     name="jupyterlab_dsh",
-    version="0.1.0",
+    version="0.2.0",
     description=(
         "DeepSeek Harness (dsh) tab for JupyterLab - same-origin reverse "
         "proxy server extension + launcher card labextension"
