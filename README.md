@@ -1,221 +1,254 @@
-# jupyterlab-dsh —— 在 JupyterLab 里打开 DeepSeek Harness (dsh)
+# jupyterlab-dsh — DeepSeek Harness (dsh) inside JupyterLab
+
+English | [中文](README.zh.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-在 JupyterLab 启动器 **Terminal 所在的 "Other" 一行** 增加一张 `deepseek-harness`
-卡片（dsh 官方鲸鱼图标），点击即在主区域标签页中打开 dsh 的 Web GUI ——
-无论 JupyterLab 监听在哪个地址、你从哪个外网 IP 访问，都能正常使用。
+Adds a `deepseek-harness` card to the **"Other" row of the JupyterLab launcher
+(the row that holds Terminal)** with the official dsh mark; clicking it opens
+the DeepSeek Harness web GUI as a main-area tab. It works no matter which
+address JupyterLab listens on — including `0.0.0.0` reached from an external
+IP.
 
-![架构](https://img.shields.io/badge/architecture-same--origin%20reverse%20proxy-4D6BFE)
+![architecture](https://img.shields.io/badge/architecture-same--origin%20reverse%20proxy-4D6BFE)
 
-启动器 **Other** 一行中的 `deepseek-harness` 卡片（dsh 官方鲸鱼图标，紧邻 Terminal）：
+```
+Browser (any external IP:port)
+   └── JupyterLab (0.0.0.0:8888, Jupyter session auth)
+         └── /dsh/            ← this plugin: same-origin reverse proxy (server ext)
+               ├── ?token= exchanged for a signed cookie server-side (token never reaches the browser)
+               ├── Host/Origin rewritten to 127.0.0.1:<port> (passes the dsh fence)
+               ├── Set-Cookie Path=/ → Path=/dsh/ (cookie scope remount)
+               ├── WebSocket (/dsh/api/remote.mux) bidirectional tunnel (chat / event stream)
+               └── 127.0.0.1:<random port> ← dsh web child process
+                     (upstream refuses 0.0.0.0 binds; this extension owns the process)
+```
+
+The `deepseek-harness` launcher card in the **Other** row (official dsh mark,
+right next to Terminal):
 
 ![launcher](docs/launcher.png)
 
-点击卡片后，dsh GUI 以标签页形式嵌入 JupyterLab 主区域（模型 DeepSeek-V4.1-Flash）：
+After clicking the card, the dsh GUI is embedded as a JupyterLab tab
+(model DeepSeek-V4.1-Flash):
 
 ![dsh tab](docs/dsh-tab.png)
 
-```
-浏览器（任意外网 IP:端口）
-   └── JupyterLab (0.0.0.0:8888, Jupyter 会话认证)
-         └── /dsh/            ← 本插件：同源反向代理（server 扩展）
-               ├── 服务端完成 ?token= 换取签名 cookie（token 不出后端）
-               ├── Host/Origin 统一重写为 127.0.0.1:<port>（绕开 dsh fence）
-               ├── Set-Cookie Path=/ → Path=/dsh/（cookie 作用域重挂载）
-               ├── WebSocket (/dsh/api/remote.mux) 双向隧道（对话/事件流）
-               └── 127.0.0.1:<随机端口> ← dsh web 子进程（上游拒绝 0.0.0.0，由扩展托管）
-```
+## Components
 
-## 组件
-
-| 部分 | 位置 | 作用 |
+| Part | Location | Role |
 |---|---|---|
-| server 扩展 | `jupyterlab_dsh/` (Python) | 拉起/守护 `dsh web` 子进程；`<base_url>dsh/` 反向代理（HTTP+WS）；`<base_url>dsh-ext/status` 健康检查 |
-| labextension | `labextension/` (TypeScript) | Launcher "Other" 行卡片 + iframe 主区域标签页（单例复用） |
+| server extension | `jupyterlab_dsh/` (Python) | Spawns/supervises the `dsh web` child; reverse proxy (HTTP + WS) at `<base_url>dsh/`; health check at `<base_url>dsh-ext/status` |
+| labextension | `labextension/` (TypeScript) | Launcher card in the "Other" row + iframe main-area tab (singleton reuse) |
 
-### 转发安全限制的处理（为什么需要这层代理）
+### How the forwarding security restrictions are solved
 
-* dsh 的 Host/Origin fence 只接受 loopback / 绑定 IP / `--trusted-host`，
-  浏览器从外网地址直接访问会被 403。代理把发往后端的请求落在
-  `127.0.0.1`，任何外网访问地址都能通过，且 dsh 的 authority 绑定 cookie
-  始终对同一 authority 校验，一处成立、处处成立。
-* 启动 token（进程凭据）由服务端持有并完成交换，不出现在浏览器 URL。
-* JupyterLab 侧：所有 `/dsh/` 请求仍需已认证的 Jupyter 会话
-  （`@web.authenticated`）；仅对本路径关闭 `_xsrf` 校验（dsh 前端无法携带
-  Jupyter 的 xsrf token），后端另有 dsh 自己的签名 cookie 把关。
-* 代理响应剥离 `X-Frame-Options` / `Content-Security-Policy` / COOP，
-  使同源 iframe 可嵌入；其余头部原样透传。
+* dsh's Host/Origin fence only accepts loopback / the bind IP /
+  `--trusted-host`; a browser hitting it via an external address gets 403.
+  The proxy forwards everything to `127.0.0.1`, so **any** external address
+  passes, and dsh's authority-bound session cookie is always validated
+  against the same authority.
+* The launch token (a process credential) is held server-side and exchanged
+  there; it never appears in a browser URL.
+* Jupyter side: every `/dsh/` request still requires an authenticated
+  Jupyter session (`@web.authenticated`); only the `_xsrf` check is disabled
+  for this path (the dsh frontend cannot carry Jupyter's xsrf token) — the
+  backend is still protected by dsh's own signed cookie.
+* Proxied responses strip `X-Frame-Options` / `Content-Security-Policy` /
+  COOP so the same-origin iframe can embed; every other header passes
+  through untouched.
 
-## 环境要求
+## Requirements
 
-| 依赖 | 版本 | 用途 |
+| Dependency | Version | Purpose |
 |---|---|---|
-| JupyterLab / jupyter-server | 3.x / ≥1.8 | 宿主（在 3.3.2 上开发测试） |
-| Node.js | **≥ 24.9** | 仅 `dsh` 运行时需要（JupyterLab 本身不需要） |
-| @deepseek-ai/dsh | 最新 | dsh CLI（`npm i -g @deepseek-ai/dsh`） |
-| DeepSeek API key | — | 安装后在 dsh 界面 **Settings → Models** 中自行填写（也可选环境变量 `DEEPSEEK_API_KEY` 注入） |
+| JupyterLab / jupyter-server | 3.x / ≥1.8 | host (developed and tested on 3.3.2) |
+| Node.js | **≥ 24.9** | only needed by the `dsh` runtime (not by JupyterLab itself) |
+| @deepseek-ai/dsh | latest | dsh CLI (`npm i -g @deepseek-ai/dsh`) |
+| DeepSeek API key | — | added by the user in the dsh UI **Settings → Models** after install (env-var `DEEPSEEK_API_KEY` injection is optional) |
 
-模型说明：DeepSeek 官方 API 当前提供的模型 ID 为 `deepseek-flash`
-（DeepSeek-V4.1-Flash，默认路由）与 `deepseek-v4-pro`；**不存在**名为
-`deepseek-v4-flash` 的 ID。
+Model note: the DeepSeek API currently exposes model IDs `deepseek-flash`
+(DeepSeek-V4.1-Flash, the default route) and `deepseek-v4-pro`; there is **no**
+ID named `deepseek-v4-flash`.
 
-## 手动安装（在目标服务器上）
+## Manual installation (on the target server)
 
-### 1. 安装 Node.js ≥ 24.9 与 dsh CLI
+### 1. Install Node.js ≥ 24.9 and the dsh CLI
 
 ```bash
-# Node.js 24（官方源；国内可用镜像 https://registry.npmmirror.com/-/binary/node/）
+# Node.js 24 (official dist; CN mirror: https://registry.npmmirror.com/-/binary/node/)
 curl -fsSL https://nodejs.org/dist/v24.12.0/node-v24.12.0-linux-x64.tar.xz \
   | tar -xJ -C /opt && ln -sf /opt/node-v24.12.0-linux-x64/bin/{node,npm,npx} /usr/local/bin/
 
-# dsh CLI（国内先切镜像源）
-npm config set registry https://registry.npmmirror.com   # 可选
+# dsh CLI (switch to the CN mirror registry first if needed)
+npm config set registry https://registry.npmmirror.com   # optional
 npm install -g @deepseek-ai/dsh
-dsh --help    # 应正常输出
+dsh --help    # should print usage
 ```
 
-### 2. 安装本插件
+### 2. Install this plugin
 
-从 [Releases](../../releases) 下载 `jupyterlab_dsh-0.1.0-py3-none-any.whl`，然后：
+Download `jupyterlab_dsh-0.1.0-py3-none-any.whl` from
+[Releases](../../releases), then:
 
 ```bash
 pip install jupyterlab_dsh-0.1.0-py3-none-any.whl
 
-# wheel 自动完成：
-#   * python 包 jupyterlab_dsh
-#   * <prefix>/share/jupyter/labextensions/jupyterlab-dsh   （前端，免编译）
-#   * <prefix>/etc/jupyter/jupyter_server_config.d/jupyterlab_dsh.json （自动启用）
+# The wheel automatically provides:
+#   * the jupyterlab_dsh Python package
+#   * <prefix>/share/jupyter/labextensions/jupyterlab-dsh   (frontend, no build needed)
+#   * <prefix>/etc/jupyter/jupyter_server_config.d/jupyterlab_dsh.json (auto-enabled)
 
-jupyter server extension list   # 应看到 jupyterlab_dsh ... enabled
-jupyter labextension list       # 应看到 jupyterlab-dsh v0.1.0 enabled OK
+jupyter server extension list   # should list jupyterlab_dsh ... enabled
+jupyter labextension list       # should list jupyterlab-dsh v0.1.0 enabled OK
 ```
 
-### 3. 启动、配置 key、验证
+### 3. Start, add your key, verify
 
 ```bash
 jupyter lab --ip 0.0.0.0 --port 8888 --no-browser --allow-root
 ```
 
 ```bash
-# 健康检查（dsh 子进程随 Jupyter 自动拉起，冷启动约 20-30 秒）
+# Health check (the dsh child starts with Jupyter; cold start ~20-30s)
 curl -s "http://127.0.0.1:8888/dsh-ext/status"        # {"ready": true, ...}
 ```
 
-浏览器打开 `http://<服务器任意IP>:8888/`，在启动器 **Other** 一行点击
-`deepseek-harness` 卡片，然后做一次性配置：
+Open `http://<any server IP>:8888/` in a browser, click the
+`deepseek-harness` card in the launcher's **Other** row, then do a one-time
+setup:
 
-1. **Settings → Models**：粘贴你的 [DeepSeek API key](https://platform.deepseek.com/) 并保存，
-   模型路由（`deepseek-flash`）立即可用，无需重启；
-2. **Choose workspace**：选择 Jupyter 的 root 目录作为工作区；
-3. 之后即可发任务。
+1. **Settings → Models**: paste your [DeepSeek API key](https://platform.deepseek.com/)
+   and save — the model route (`deepseek-flash`) works immediately, no restart needed;
+2. **Choose workspace**: pick the Jupyter root directory as the workspace;
+3. Send your first task.
 
-> 偏好环境变量的话也可以：`DEEPSEEK_API_KEY=sk-xxx jupyter lab ...`，
-> 两种方式任选其一，界面填写是默认推荐方式。
+> If you prefer environment variables, `DEEPSEEK_API_KEY=sk-xxx jupyter lab ...`
+> works too — either way is fine; the UI is the recommended default.
 
-## AI 辅助安装（把下面提示词交给服务器上的 AI 代理）
+## AI-assisted installation (hand this prompt to an AI agent on the server)
 
-把这段提示词原样粘给服务器上可执行命令的 AI 助手（如 Claude Code /
-ZCode / Codex 等），替换 `<...>` 占位符即可：
+Paste the prompt below to a command-capable AI assistant on the target server
+(Claude Code / ZCode / Codex …), replacing `<...>` placeholders:
 
 ```text
-请帮我在这台服务器上安装并验证 jupyterlab-dsh（JupyterLab 的 DeepSeek
-Harness 集成插件，GitHub 仓库 MasterChiefm/jupyterlab-dsh）。步骤：
+Please install and verify jupyterlab-dsh on this server (a JupyterLab
+integration of DeepSeek Harness; GitHub repo MasterChiefm/jupyterlab-dsh).
 
-1. 从该仓库的 GitHub Releases 下载 jupyterlab_dsh-0.1.0-py3-none-any.whl
-   （网络受限时可配置代理或镜像后再下载）。
-2. 检查前置条件并补齐：
-   - Node.js >= 24.9（只有 dsh 运行时需要；JupyterLab 本身不需要）。
-     国内网络可从 https://registry.npmmirror.com/-/binary/node/v24.12.0/
-     下载 node-v24.12.0-linux-x64.tar.xz 解压并软链 node/npm/npx。
-   - npm 全局安装 @deepseek-ai/dsh（国内先
-     npm config set registry https://registry.npmmirror.com）。
-   - 确认已安装 JupyterLab 3.x 与 jupyter-server>=1.8。
-3. pip 安装该 wheel，然后执行 `jupyter server extension list` 和
-   `jupyter labextension list`，确认 jupyterlab_dsh / jupyterlab-dsh 均为 enabled。
-4. 启动（不需要任何 API key）：
-   jupyter lab --ip 0.0.0.0 --port <端口> --no-browser
-5. 验证：
-   a. curl http://127.0.0.1:<端口>/dsh-ext/status 直到返回 "ready": true
-      （dsh 子进程冷启动约 20-30 秒，注意用已认证的 jupyter token/cookie）；
-   b. curl -D - 访问 /dsh/ 入口，确认返回 200 且 Set-Cookie 的 Path 被改写为 /dsh/；
-   c. 用浏览器（或无头浏览器）打开 http://<服务器IP>:<端口>/，确认启动器
-      Other 一行出现 deepseek-harness 卡片，点击后能加载 dsh 界面。
-6. 完成后告诉使用者：DeepSeek API key 由使用者本人在 dsh 界面的
-   Settings → Models 页面填写并保存（无需重启，模型 deepseek-flash 立即可用）；
-   不要向我要 key，也不要把 key 写入任何文件。
-7. 注意：模型用 deepseek-flash（即 DeepSeek-V4.1-Flash）或 deepseek-v4-pro，
-   API 中不存在 deepseek-v4-flash 这个 ID。
-遇到问题时参考仓库 README 的"手动安装"与 AGENTS.md 的排障说明。
+1. Download jupyterlab_dsh-0.1.0-py3-none-any.whl from the repo's GitHub
+   Releases (configure a proxy or mirror first if the network is restricted).
+2. Check and satisfy the prerequisites:
+   - Node.js >= 24.9 (only the dsh runtime needs it, not JupyterLab).
+     On restricted networks, fetch node-v24.12.0-linux-x64.tar.xz from
+     https://registry.npmmirror.com/-/binary/node/v24.12.0/ and symlink
+     node/npm/npx.
+   - Install the global npm package @deepseek-ai/dsh (first run
+     npm config set registry https://registry.npmmirror.com on CN networks).
+   - Confirm JupyterLab 3.x and jupyter-server>=1.8 are installed.
+3. pip install the wheel, then run `jupyter server extension list` and
+   `jupyter labextension list` and confirm jupyterlab_dsh / jupyterlab-dsh
+   are both enabled.
+4. Start it (no API key is needed):
+   jupyter lab --ip 0.0.0.0 --port <port> --no-browser
+5. Verify:
+   a. curl http://127.0.0.1:<port>/dsh-ext/status until it returns
+      "ready": true (dsh cold-starts in ~20-30s; use an authenticated
+      jupyter token/cookie);
+   b. curl -D - the /dsh/ entry and confirm HTTP 200 and that the
+      Set-Cookie Path is rewritten to /dsh/;
+   c. with a browser (or headless browser) open http://<server-ip>:<port>/
+      and confirm the deepseek-harness card appears in the launcher's
+      Other row and loads the dsh UI when clicked.
+6. When done, tell the user: the DeepSeek API key is entered by the user
+   themselves in the dsh UI under Settings → Models (no restart needed;
+   model deepseek-flash works immediately). Do not ask me for a key and do
+   not write any key into files.
+7. Note: use model deepseek-flash (DeepSeek-V4.1-Flash) or deepseek-v4-pro;
+   there is no model ID deepseek-v4-flash.
+If anything fails, consult the repo README's manual-install section and
+AGENTS.md for troubleshooting.
 ```
 
-## 配置项（jupyter_server_config.py）
+## Configuration (jupyter_server_config.py)
 
 ```python
-c.DshExtensionConfig.port = 0         # dsh 回环监听端口，0=随机（默认，免冲突）
-c.DshExtensionConfig.command = ""     # 自定义启动命令，如 "dsh web --no-open --port 3080"
-c.DshExtensionConfig.autostart = True # 随 Jupyter 启动 dsh（进程组随 Jupyter 退出）
+c.DshExtensionConfig.port = 0         # loopback port for dsh; 0 = random (default, conflict-free)
+c.DshExtensionConfig.command = ""     # custom launch command, e.g. "dsh web --no-open --port 3080"
+c.DshExtensionConfig.autostart = True # start dsh with Jupyter (process group dies with it)
 ```
 
-dsh 的工作目录 = Jupyter 的 root_dir。
+The dsh working directory follows Jupyter's root_dir.
 
-## FAQ（常见部署场景）
+## FAQ (common deployment scenarios)
 
-### 服务器上只装了 JupyterLab，装这个插件会怎么样？
+### The server only has JupyterLab — what happens after installing the plugin?
 
-**JupyterLab 完全不受影响，其它功能照常**：wheel 正常安装、扩展启用、
-Launcher 出现卡片；点开卡片会看到明确的错误页（503，"could not start
-dsh …"）并每 3 秒自动刷新——因为机器上还没有 `dsh` 命令。后台守护循环
-会以指数退避（上限 30 秒）持续重试。之后任何时候补装 Node ≥ 24.9 与
-`npm i -g @deepseek-ai/dsh`（无需重启 JupyterLab），最多 30 秒内插件自动
-拉起 dsh，报错页自愈为正常 GUI。所以"先装插件、后补依赖"是可行顺序。
+**JupyterLab itself is completely unaffected**; everything else works. The
+wheel installs, the extension enables, the launcher card appears; clicking it
+shows a clear error page (503, "could not start dsh …") that auto-refreshes
+every 3s — the machine simply has no `dsh` command yet. The supervisor keeps
+retrying with exponential backoff (capped at 30s). Install Node ≥ 24.9 and
+`npm i -g @deepseek-ai/dsh` at any later time — without restarting
+JupyterLab — and within 30s the plugin brings dsh up and the error page
+self-heals into the working GUI. "Plugin first, dependencies later" is a
+valid order.
 
-### JupyterLab 和 deepseek-harness 都装了，要手动同时启动两者吗？
+### Both JupyterLab and deepseek-harness are installed — must I start both manually?
 
-**不需要，只启动 JupyterLab 一条命令**。`autostart=True`（默认）时扩展
-自动把 `dsh web` 作为子进程拉起（约 20–30 秒就绪）；dsh 崩溃自动重启
-（刷新标签页即可重连，签名密钥持久在 `$DSH_HOME`，旧会话 cookie 仍有效）；
-Jupyter 退出时 dsh 被整组回收，不留孤儿进程。
+**No — starting JupyterLab is the only command you need.** With
+`autostart=True` (default) the extension launches `dsh web` as a child
+process (ready in ~20–30s); a crashed dsh is restarted automatically (refresh
+the tab to reconnect — the signing secret persists in `$DSH_HOME`, so the old
+session cookie stays valid); when Jupyter exits, dsh is killed as a process
+group with no orphans.
 
-**不要自己再手动跑一个 `dsh web` 给插件用**——扩展必须自己拉起子进程，
-才能从其 stdout 解析本次启动的 launch token 并完成服务端交换；手动起的
-实例对插件不可见。
+**Do not run your own `dsh web` for the plugin** — the extension must spawn
+the child itself to parse the per-process launch token from its stdout and
+perform the server-side exchange; a manually started instance is invisible
+to it.
 
-### dsh 运行在别的端口，该如何处理？
+### deepseek-harness is running on a different port — what do I do?
 
-* **想让插件自己拉起的 dsh 用固定端口**（默认 0 = 随机回环端口）：
+* **You want the plugin's own dsh on a fixed port** (default 0 = random
+  loopback port):
   ```python
-  c.DshExtensionConfig.port = 3080   # 插件用 dsh web --no-open --port 3080 拉起
+  c.DshExtensionConfig.port = 3080   # plugin launches dsh web --no-open --port 3080
   ```
-  前提是端口空闲；被占用时 dsh 起不来，插件显示错误页并持续重试。
-* **已有自己手动/系统服务跑着的 dsh 实例在别的端口**：不用处理，两者
-  天然共存——插件实例默认用随机回环端口，永不冲突；你的 dsh 继续按原样
-  用，插件在 JupyterLab 里另起独立实例（`$DSH_HOME` 存储共享，会话按进程
-  区分）。插件不支持"代理到外部已有 dsh 实例"，因为拿不到那个实例的
-  进程 token，无法完成浏览器会话交换。
-* **dsh 不在 PATH 或需要自定义启动参数**：
+  The port must be free; if occupied, dsh fails to start, the plugin shows
+  the error page and keeps retrying.
+* **You already run your own dsh instance on another port**: nothing to do —
+  they coexist naturally. The plugin's instance uses a random loopback port
+  and never conflicts; keep using your dsh as-is while the plugin runs its
+  own instance inside JupyterLab (`$DSH_HOME` storage is shared; sessions
+  are per-process). Proxying to an external existing dsh instance is not
+  supported, because that instance's process token is not accessible and the
+  browser session exchange cannot be performed.
+* **dsh is not on PATH or needs custom launch arguments**:
   ```python
   c.DshExtensionConfig.command = "/opt/node24/bin/dsh web --no-open --port 3080"
   ```
 
-注意：配置了固定端口且自己的 dsh 也跑同一端口时，两者会抢端口（后启动
-的失败重试）——此时改回 `port = 0` 或给两者分不同端口。
+Note: if you configure a fixed port while your own dsh runs on the same
+port, they fight over it (whichever starts later fails and retries) — set
+`port = 0` back or give them different ports.
 
-## 从源码构建（改代码时才需要）
+## Building from source (only needed when changing code)
 
 ```bash
 cd labextension && jlpm install && jlpm run build   # tsc + jupyter labextension build
 cd .. && pip wheel . --no-deps -w dist/
 ```
 
-构建细节与依赖陷阱（webpack 必须锁 5.44.0、node DNS 参数等）见 [AGENTS.md](AGENTS.md)。
+Build details and dependency traps (webpack must be pinned to 5.44.0, node
+DNS flags, …) are in [AGENTS.md](AGENTS.md).
 
-## 已验证
+## Verified
 
-* JupyterLab 监听 `0.0.0.0`，从外网 IP 访问 `/lab`、`/dsh/`（服务端 token
-  交换、cookie `Path=/dsh/` 重写）、API POST（fence 通过）、WebSocket 升级
-  `/dsh/api/remote.mux`（101 建链）全部通过；Launcher 出现
-  `deepseek-harness` 卡片，点击后 iframe 正常加载 dsh GUI 并可执行任务。
+With JupyterLab listening on `0.0.0.0` and accessed from an external IP:
+`/lab` 200, `/dsh/` (server-side token exchange, cookie `Path=/dsh/`
+rewrite), API POST (fence passed), WebSocket upgrade at
+`/dsh/api/remote.mux` (101 established) — all pass; the launcher shows the
+`deepseek-harness` card and the iframe loads a fully working dsh GUI.
 
 ## License
 
