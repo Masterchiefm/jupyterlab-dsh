@@ -1,0 +1,21 @@
+# build artifacts
+labextension/node_modules/
+labextension/lib/
+labextension/tsconfig.tsbuildinfo
+labextension/jupyterlab-dsh-dist/
+dist/
+build/
+*.egg-info/
+
+# secrets & local state
+.env
+*.pem
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# misc
+*.log
+.DS_Store
