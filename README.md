@@ -8,6 +8,14 @@
 
 ![架构](https://img.shields.io/badge/architecture-same--origin%20reverse%20proxy-4D6BFE)
 
+启动器 **Other** 一行中的 `deepseek-harness` 卡片（dsh 官方鲸鱼图标，紧邻 Terminal）：
+
+![launcher](docs/launcher.png)
+
+点击卡片后，dsh GUI 以标签页形式嵌入 JupyterLab 主区域（模型 DeepSeek-V4.1-Flash）：
+
+![dsh tab](docs/dsh-tab.png)
+
 ```
 浏览器（任意外网 IP:端口）
    └── JupyterLab (0.0.0.0:8888, Jupyter 会话认证)
@@ -141,6 +149,48 @@ c.DshExtensionConfig.autostart = True # 随 Jupyter 启动 dsh（进程组随 Ju
 ```
 
 dsh 的工作目录 = Jupyter 的 root_dir。
+
+## FAQ（常见部署场景）
+
+### 服务器上只装了 JupyterLab，装这个插件会怎么样？
+
+**JupyterLab 完全不受影响，其它功能照常**：wheel 正常安装、扩展启用、
+Launcher 出现卡片；点开卡片会看到明确的错误页（503，"could not start
+dsh …"）并每 3 秒自动刷新——因为机器上还没有 `dsh` 命令。后台守护循环
+会以指数退避（上限 30 秒）持续重试。之后任何时候补装 Node ≥ 24.9 与
+`npm i -g @deepseek-ai/dsh`（无需重启 JupyterLab），最多 30 秒内插件自动
+拉起 dsh，报错页自愈为正常 GUI。所以"先装插件、后补依赖"是可行顺序。
+
+### JupyterLab 和 deepseek-harness 都装了，要手动同时启动两者吗？
+
+**不需要，只启动 JupyterLab 一条命令**。`autostart=True`（默认）时扩展
+自动把 `dsh web` 作为子进程拉起（约 20–30 秒就绪）；dsh 崩溃自动重启
+（刷新标签页即可重连，签名密钥持久在 `$DSH_HOME`，旧会话 cookie 仍有效）；
+Jupyter 退出时 dsh 被整组回收，不留孤儿进程。
+
+**不要自己再手动跑一个 `dsh web` 给插件用**——扩展必须自己拉起子进程，
+才能从其 stdout 解析本次启动的 launch token 并完成服务端交换；手动起的
+实例对插件不可见。
+
+### dsh 运行在别的端口，该如何处理？
+
+* **想让插件自己拉起的 dsh 用固定端口**（默认 0 = 随机回环端口）：
+  ```python
+  c.DshExtensionConfig.port = 3080   # 插件用 dsh web --no-open --port 3080 拉起
+  ```
+  前提是端口空闲；被占用时 dsh 起不来，插件显示错误页并持续重试。
+* **已有自己手动/系统服务跑着的 dsh 实例在别的端口**：不用处理，两者
+  天然共存——插件实例默认用随机回环端口，永不冲突；你的 dsh 继续按原样
+  用，插件在 JupyterLab 里另起独立实例（`$DSH_HOME` 存储共享，会话按进程
+  区分）。插件不支持"代理到外部已有 dsh 实例"，因为拿不到那个实例的
+  进程 token，无法完成浏览器会话交换。
+* **dsh 不在 PATH 或需要自定义启动参数**：
+  ```python
+  c.DshExtensionConfig.command = "/opt/node24/bin/dsh web --no-open --port 3080"
+  ```
+
+注意：配置了固定端口且自己的 dsh 也跑同一端口时，两者会抢端口（后启动
+的失败重试）——此时改回 `port = 0` 或给两者分不同端口。
 
 ## 从源码构建（改代码时才需要）
 
