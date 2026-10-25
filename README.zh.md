@@ -157,9 +157,26 @@ Harness 集成插件，GitHub 仓库 MasterChiefm/jupyterlab-dsh）。步骤：
 c.DshExtensionConfig.port = 0         # dsh 回环监听端口，0=随机（默认，免冲突）
 c.DshExtensionConfig.command = ""     # 自定义启动命令，如 "dsh web --no-open --port 3080"
 c.DshExtensionConfig.autostart = True # 随 Jupyter 启动 dsh（进程组随 Jupyter 退出）
+c.DshExtensionConfig.home = ""        # 本实例专用 dsh home（注入 $DSH_HOME，支持 ~）
+c.DshExtensionConfig.agents_home = "" # 专用共享代理配置根（注入 $DSH_AGENTS_HOME）
 ```
 
 dsh 的工作目录 = Jupyter 的 root_dir。
+
+### 与本机其他 dsh 实例隔离
+
+默认情况下拉起的实例使用环境默认 home（`~/.dsh`）——与本机任何其他方式
+启动的 `dsh`/`dsh web`（比如项目目录里的 `npm exec dsh web`）**共享**会话、
+凭据和配置，两边互相可见。要让 Jupyter 内嵌的 GUI 使用独立状态，给它指一
+个专用 home：
+
+```python
+c.DshExtensionConfig.home = "~/.dsh-jupyter"
+```
+
+目录按需自动创建；此后 Jupyter 实例不再读写 `~/.dsh` 的任何内容。若想把
+已有的 API key 带过去，把 `~/.dsh/.credentials.yaml` 复制一份到新 home 即可
+（复制后两份各自独立，换 key 时需分别更换）。
 
 ## FAQ（常见部署场景）
 

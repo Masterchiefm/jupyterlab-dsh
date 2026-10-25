@@ -39,6 +39,28 @@ class DshExtensionConfig(Configurable):
         True, help="Start the dsh backend together with the Jupyter server."
     ).tag(config=True)
 
+    home = Unicode(
+        "",
+        help=(
+            "Dedicated dsh home directory for the Jupyter-spawned instance "
+            "(sets $DSH_HOME for the child; '~' is expanded). Empty "
+            "inherits the ambient home (~/.dsh). Set it, e.g. to "
+            "'~/.dsh-jupyter', to keep this GUI's sessions, credentials and "
+            "configuration isolated from dsh instances running outside "
+            "Jupyter (an 'npm exec dsh web' in a project directory shares "
+            "~/.dsh otherwise)."
+        ),
+    ).tag(config=True)
+
+    agents_home = Unicode(
+        "",
+        help=(
+            "Optional dedicated shared-agent-config root for the spawned "
+            "instance (sets $DSH_AGENTS_HOME; '~' is expanded). Empty "
+            "inherits ~/.agents."
+        ),
+    ).tag(config=True)
+
 
 def _load_jupyter_server_extension(server_app):
     """Called by jupyter_server when the extension is enabled."""

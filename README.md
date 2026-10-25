@@ -175,9 +175,28 @@ AGENTS.md for troubleshooting.
 c.DshExtensionConfig.port = 0         # loopback port for dsh; 0 = random (default, conflict-free)
 c.DshExtensionConfig.command = ""     # custom launch command, e.g. "dsh web --no-open --port 3080"
 c.DshExtensionConfig.autostart = True # start dsh with Jupyter (process group dies with it)
+c.DshExtensionConfig.home = ""        # dedicated dsh home for this instance (sets $DSH_HOME, '~' ok)
+c.DshExtensionConfig.agents_home = "" # dedicated shared-agent root (sets $DSH_AGENTS_HOME)
 ```
 
 The dsh working directory follows Jupyter's root_dir.
+
+### Isolating from other dsh instances on the same machine
+
+By default the spawned instance uses the ambient home (`~/.dsh`), which is
+what any other `dsh web`/`dsh` run on the machine uses too — sessions,
+credentials and configuration are then **shared** in both directions. To
+keep the Jupyter-embedded GUI in its own state, point it at a dedicated
+home:
+
+```python
+c.DshExtensionConfig.home = "~/.dsh-jupyter"
+```
+
+The directory is created on demand; nothing under `~/.dsh` is read or
+written by the Jupyter instance afterwards. Copy `~/.dsh/.credentials.yaml`
+into the new home once if you want the existing API key carried over (the
+two copies are then independent — rotate them separately).
 
 ## FAQ (common deployment scenarios)
 

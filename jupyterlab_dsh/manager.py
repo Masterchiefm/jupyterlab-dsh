@@ -91,6 +91,17 @@ class DshManager:
 
         env = dict(os.environ)
         env.setdefault("DSH_NO_ANALYTICS", "1")
+        # State isolation: point the child at a dedicated home so its
+        # sessions/credentials/configuration do not mix with dsh instances
+        # started outside Jupyter.  dsh resolves its home as
+        # configured-path > $DSH_HOME > ~/.dsh and treats an empty value as
+        # unset; directories are created on demand.
+        for env_name, trait in (("DSH_HOME", "home"), ("DSH_AGENTS_HOME", "agents_home")):
+            value = (getattr(self.config, trait, "") or "").strip()
+            if value:
+                value = os.path.expanduser(value)
+                os.makedirs(value, exist_ok=True)
+                env[env_name] = value
 
         self._record("starting: " + " ".join(cmd))
         try:
