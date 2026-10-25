@@ -35,6 +35,38 @@ export const dshIcon = new LabIcon({
   svgstr: dshIconSvg
 });
 
+/**
+ * Find the singleton dsh tab among the main-area widgets.
+ *
+ * lumino v1 (JupyterLab 3) iterators return `T | undefined` from next(),
+ * while lumino v2 (JupyterLab 4) returns an `{value, done}` IteratorResult.
+ * Assuming either single contract here spins the UI thread forever on the
+ * other JupyterLab generation (the "click freezes the whole page" bug), so
+ * both are handled and the scan is capped as a belt-and-braces guard.
+ */
+function findExistingDshWidget(app: JupyterFrontEnd): Widget | undefined {
+  const iter = app.shell.widgets('main');
+  for (let guard = 0; guard < 4096; guard++) {
+    let cur: any = iter.next();
+    if (cur === undefined || cur === null) {
+      return undefined; // v1: exhausted
+    }
+    if (typeof cur === 'object' && 'done' in cur) {
+      if (cur.done) {
+        return undefined; // v2: exhausted
+      }
+      cur = cur.value;
+      if (cur === undefined || cur === null) {
+        return undefined;
+      }
+    }
+    if ((cur as Widget).id === WIDGET_ID) {
+      return cur as Widget;
+    }
+  }
+  return undefined;
+}
+
 function createDshWidget(): MainAreaWidget {
   const iframe = document.createElement('iframe');
   iframe.className = 'jp-dsh-iframe';
@@ -68,15 +100,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
       icon: dshIcon,
       execute: () => {
         // Singleton tab: reveal an already-open dsh tab instead of stacking.
-        let existing: Widget | undefined;
-        const iter = app.shell.widgets('main');
-        for (let w = iter.next(); w !== undefined; w = iter.next()) {
-          if (w.id === WIDGET_ID) {
-            existing = w;
-            break;
-          }
-        }
-        if (existing) {
+        if (findExistingDshWidget(app)) {
           app.shell.activateById(WIDGET_ID);
           return;
         }

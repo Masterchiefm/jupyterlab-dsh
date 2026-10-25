@@ -53,7 +53,7 @@
 
 | 依赖 | 版本 | 用途 |
 |---|---|---|
-| JupyterLab / jupyter-server | 3.x / ≥1.8 | 宿主（在 3.3.2 上开发测试） |
+| JupyterLab / jupyter-server | **3.3+ 或 4.x** / ≥1.8 | 宿主 —— 单一构建产物同时兼容两代（已在 3.6.8 与 4.5.6 上实测，见 [docs/jupyterlab3-4-compat.md](docs/jupyterlab3-4-compat.md)） |
 | Node.js | **≥ 24.9** | 仅 `dsh` 运行时需要（JupyterLab 本身不需要） |
 | @deepseek-ai/dsh | 最新 | dsh CLI（`npm i -g @deepseek-ai/dsh`） |
 | DeepSeek API key | — | 安装后在 dsh 界面 **Settings → Models** 中自行填写（也可选环境变量 `DEEPSEEK_API_KEY` 注入） |
@@ -218,6 +218,9 @@ cd .. && pip wheel . --no-deps -w dist/
   交换、cookie `Path=/dsh/` 重写）、API POST（fence 通过）、WebSocket 升级
   `/dsh/api/remote.mux`（101 建链）全部通过；Launcher 出现
   `deepseek-harness` 卡片，点击后 iframe 正常加载 dsh GUI 并可执行任务。
+* 同一构建产物在 **JupyterLab 3.6.8** 与 **JupyterLab 4.5.6** 上通过端到端
+  点击验收（无头 Chromium）：点击 <0.1s 完成、UI 主线程全程响应、dsh GUI
+  完整启动。背景与根因分析：[docs/jupyterlab3-4-compat.md](docs/jupyterlab3-4-compat.md)。
 
 ## License
 

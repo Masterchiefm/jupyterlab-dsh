@@ -39,27 +39,45 @@
     "watch:labextension": "jupyter labextension watch ."
   },
   "dependencies": {
-    "@jupyterlab/application": "~3.3.0",
-    "@jupyterlab/apputils": "~3.3.0",
-    "@jupyterlab/coreutils": "~5.3.0",
-    "@jupyterlab/launcher": "~3.3.0",
-    "@jupyterlab/translation": "~3.3.0",
-    "@jupyterlab/ui-components": "~3.3.0",
-    "@lumino/widgets": "^1.32.0"
+    "@jupyterlab/application": "^3.3.0 || ^4.0.0",
+    "@jupyterlab/apputils": "^3.3.0 || ^4.0.0",
+    "@jupyterlab/coreutils": "^5.3.0 || ^6.0.0",
+    "@jupyterlab/launcher": "^3.3.0 || ^4.0.0",
+    "@jupyterlab/translation": "^3.3.0 || ^4.0.0",
+    "@jupyterlab/ui-components": "^3.3.0 || ^4.0.0",
+    "@lumino/widgets": "^1.32.0 || ^2.0.0"
   },
   "devDependencies": {
-    "@jupyterlab/builder": "~3.3.0",
+    "@jupyterlab/builder": "^3.3.0 || ^4.0.0",
     "npm-run-all": "^4.1.5",
     "rimraf": "^3.0.2",
-    "typescript": "~4.1.3",
-    "webpack": "5.44.0"
-  },
-  "resolutions": {
-    "webpack": "5.44.0"
+    "typescript": "~5.3.3"
   },
   "jupyterlab": {
     "extension": true,
     "outputDir": "jupyterlab-dsh-dist",
-    "webpackConfig": "./webpack.config.js"
+    "sharedPackages": {
+      "@jupyterlab/application": {
+        "requiredVersion": "^3.3.0 || ^4.0.0"
+      },
+      "@jupyterlab/apputils": {
+        "requiredVersion": "^3.3.0 || ^4.0.0"
+      },
+      "@jupyterlab/coreutils": {
+        "requiredVersion": "^5.3.0 || ^6.0.0"
+      },
+      "@jupyterlab/launcher": {
+        "requiredVersion": "^3.3.0 || ^4.0.0"
+      },
+      "@jupyterlab/translation": {
+        "requiredVersion": "^3.3.0 || ^4.0.0"
+      },
+      "@jupyterlab/ui-components": {
+        "requiredVersion": "^3.3.0 || ^4.0.0"
+      },
+      "@lumino/widgets": {
+        "requiredVersion": "^1.32.0 || ^2.0.0"
+      }
+    }
   }
 }

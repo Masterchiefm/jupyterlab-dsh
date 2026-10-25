@@ -3,6 +3,7 @@ labextension/node_modules/
 labextension/lib/
 labextension/tsconfig.tsbuildinfo
 labextension/jupyterlab-dsh-dist/
+labextension/.yarn/
 dist/
 build/
 *.egg-info/

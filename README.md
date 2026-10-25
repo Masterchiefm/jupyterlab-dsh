@@ -62,7 +62,7 @@ After clicking the card, the dsh GUI is embedded as a JupyterLab tab
 
 | Dependency | Version | Purpose |
 |---|---|---|
-| JupyterLab / jupyter-server | 3.x / ≥1.8 | host (developed and tested on 3.3.2) |
+| JupyterLab / jupyter-server | **3.3+ or 4.x** / ≥1.8 | host — one prebuilt bundle serves both generations (verified on 3.6.8 and 4.5.6; see [docs/jupyterlab3-4-compat.md](docs/jupyterlab3-4-compat.md)) |
 | Node.js | **≥ 24.9** | only needed by the `dsh` runtime (not by JupyterLab itself) |
 | @deepseek-ai/dsh | latest | dsh CLI (`npm i -g @deepseek-ai/dsh`) |
 | DeepSeek API key | — | added by the user in the dsh UI **Settings → Models** after install (env-var `DEEPSEEK_API_KEY` injection is optional) |
@@ -249,6 +249,11 @@ With JupyterLab listening on `0.0.0.0` and accessed from an external IP:
 rewrite), API POST (fence passed), WebSocket upgrade at
 `/dsh/api/remote.mux` (101 established) — all pass; the launcher shows the
 `deepseek-harness` card and the iframe loads a fully working dsh GUI.
+
+End-to-end launcher-click acceptance (headless Chromium) passes on both
+**JupyterLab 3.6.8** and **JupyterLab 4.5.6** with the same prebuilt bundle:
+click completes in <0.1 s, the UI thread stays responsive, and the dsh GUI
+boots inside the tab. Background: [docs/jupyterlab3-4-compat.md](docs/jupyterlab3-4-compat.md).
 
 ## License
 
