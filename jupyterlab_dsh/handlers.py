@@ -151,18 +151,36 @@ class DshProxyHandler(WebSocketHandlerMixin, JupyterHandler, websocket.WebSocket
     def _emit_response(self, resp):
         self.set_status(resp.code, resp.reason)
         skip = HOP_HEADERS | STRIP_RESPONSE_HEADERS | {"content-length"}
+        # 204/304 (and 1xx) responses carry no body and must not carry
+        # representation metadata (RFC 9110 §9.3.5/§15.4.5).  Tornado's
+        # finish() strips those headers for such statuses, and its
+        # clear_header() raises KeyError when the header's HTTPHeaders
+        # lookup-cache entry is gone -- which is the state left behind by
+        # add_header() on a name that already had a value (it pops the
+        # cache).  That is exactly how a browser revalidating a cached
+        # asset (If-None-Match) turned a proxied response into a 500 and a
+        # blank dsh tab after close + reopen.  So: no representation
+        # headers, no body write for no-body statuses.
+        no_body = resp.code in (204, 304) or 100 <= resp.code < 200
         for name in resp.headers.keys():
             for value in resp.headers.get_list(name):
                 ln = name.lower()
                 if ln in skip:
                     continue
+                if no_body and ln in ("content-type", "content-encoding", "content-language"):
+                    continue
                 if ln == "set-cookie":
                     self.add_header("Set-Cookie", self._rewrite_cookie(value))
                 elif ln == "location":
                     self.add_header("Location", self._rewrite_location(value))
+                elif ln == "content-type":
+                    # set_header: replaces the "text/html" default from
+                    # JupyterHandler.set_default_headers instead of
+                    # stacking a second, conflicting value
+                    self.set_header(name, value)
                 else:
                     self.add_header(name, value)
-        if self.request.method != "HEAD" and resp.body is not None:
+        if not no_body and self.request.method != "HEAD" and resp.body is not None:
             self.write(resp.body)
 
     async def _fetch(self, url, method, headers, body=None):
