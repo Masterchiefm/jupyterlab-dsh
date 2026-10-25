@@ -54,7 +54,7 @@
 | JupyterLab / jupyter-server | 3.x / ≥1.8 | 宿主（在 3.3.2 上开发测试） |
 | Node.js | **≥ 24.9** | 仅 `dsh` 运行时需要（JupyterLab 本身不需要） |
 | @deepseek-ai/dsh | 最新 | dsh CLI（`npm i -g @deepseek-ai/dsh`） |
-| DeepSeek API key | — | 环境变量 `DEEPSEEK_API_KEY` 或界面内填写 |
+| DeepSeek API key | — | 安装后在 dsh 界面 **Settings → Models** 中自行填写（也可选环境变量 `DEEPSEEK_API_KEY` 注入） |
 
 模型说明：DeepSeek 官方 API 当前提供的模型 ID 为 `deepseek-flash`
 （DeepSeek-V4.1-Flash，默认路由）与 `deepseek-v4-pro`；**不存在**名为
@@ -91,10 +91,10 @@ jupyter server extension list   # 应看到 jupyterlab_dsh ... enabled
 jupyter labextension list       # 应看到 jupyterlab-dsh v0.1.0 enabled OK
 ```
 
-### 3. 启动并验证
+### 3. 启动、配置 key、验证
 
 ```bash
-DEEPSEEK_API_KEY=sk-xxx jupyter lab --ip 0.0.0.0 --port 8888 --no-browser --allow-root
+jupyter lab --ip 0.0.0.0 --port 8888 --no-browser --allow-root
 ```
 
 ```bash
@@ -103,9 +103,15 @@ curl -s "http://127.0.0.1:8888/dsh-ext/status"        # {"ready": true, ...}
 ```
 
 浏览器打开 `http://<服务器任意IP>:8888/`，在启动器 **Other** 一行点击
-`deepseek-harness` 卡片。首次进入 dsh 后点 **Choose workspace** 选择
-Jupyter 的 root 目录，在 **Settings → Models** 确认 key（环境变量已注入则
-无需再填），然后即可发任务。
+`deepseek-harness` 卡片，然后做一次性配置：
+
+1. **Settings → Models**：粘贴你的 [DeepSeek API key](https://platform.deepseek.com/) 并保存，
+   模型路由（`deepseek-flash`）立即可用，无需重启；
+2. **Choose workspace**：选择 Jupyter 的 root 目录作为工作区；
+3. 之后即可发任务。
+
+> 偏好环境变量的话也可以：`DEEPSEEK_API_KEY=sk-xxx jupyter lab ...`，
+> 两种方式任选其一，界面填写是默认推荐方式。
 
 ## AI 辅助安装（把下面提示词交给服务器上的 AI 代理）
 
@@ -127,16 +133,19 @@ Harness 集成插件，GitHub 仓库 MasterChiefm/jupyterlab-dsh）。步骤：
    - 确认已安装 JupyterLab 3.x 与 jupyter-server>=1.8。
 3. pip 安装该 wheel，然后执行 `jupyter server extension list` 和
    `jupyter labextension list`，确认 jupyterlab_dsh / jupyterlab-dsh 均为 enabled。
-4. 用环境变量 DEEPSEEK_API_KEY=<你的key> 启动：
-   DEEPSEEK_API_KEY=<你的key> jupyter lab --ip 0.0.0.0 --port <端口> --no-browser
+4. 启动（不需要任何 API key）：
+   jupyter lab --ip 0.0.0.0 --port <端口> --no-browser
 5. 验证：
    a. curl http://127.0.0.1:<端口>/dsh-ext/status 直到返回 "ready": true
       （dsh 子进程冷启动约 20-30 秒，注意用已认证的 jupyter token/cookie）；
    b. curl -D - 访问 /dsh/ 入口，确认返回 200 且 Set-Cookie 的 Path 被改写为 /dsh/；
    c. 用浏览器（或无头浏览器）打开 http://<服务器IP>:<端口>/，确认启动器
       Other 一行出现 deepseek-harness 卡片，点击后能加载 dsh 界面。
-6. 注意：模型用 deepseek-flash（即 DeepSeek-V4.1-Flash）或 deepseek-v4-pro，
-   API 中不存在 deepseek-v4-flash 这个 ID；API key 不要写入任何仓库文件。
+6. 完成后告诉使用者：DeepSeek API key 由使用者本人在 dsh 界面的
+   Settings → Models 页面填写并保存（无需重启，模型 deepseek-flash 立即可用）；
+   不要向我要 key，也不要把 key 写入任何文件。
+7. 注意：模型用 deepseek-flash（即 DeepSeek-V4.1-Flash）或 deepseek-v4-pro，
+   API 中不存在 deepseek-v4-flash 这个 ID。
 遇到问题时参考仓库 README 的"手动安装"与 AGENTS.md 的排障说明。
 ```
 
